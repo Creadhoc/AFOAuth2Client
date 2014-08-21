@@ -171,7 +171,11 @@ static NSMutableDictionary * AFKeychainQueryDictionaryWithIdentifier(NSString *i
     [mutableRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
 
     AFHTTPRequestOperation *requestOperation = [self HTTPRequestOperationWithRequest:mutableRequest success:^(AFHTTPRequestOperation *operation, id responseObject) {
-        if ([responseObject valueForKey:@"error"]) {
+
+		NSError *serializationError;
+		NSDictionary *responseDictionary = [NSJSONSerialization JSONObjectWithData:responseObject options:(NSJSONReadingOptions) kNilOptions error:&serializationError];
+
+        if ([responseDictionary valueForKey:@"error"] || (serializationError)) {
             if (failure) {
                 // TODO: Resolve the `error` field into a proper NSError object
                 // http://tools.ietf.org/html/rfc6749#section-5.2
@@ -181,15 +185,15 @@ static NSMutableDictionary * AFKeychainQueryDictionaryWithIdentifier(NSString *i
             return;
         }
 
-        NSString *refreshToken = [responseObject valueForKey:@"refresh_token"];
+		NSString *refreshToken = [responseDictionary valueForKey:@"refresh_token"];
         if (refreshToken == nil || [refreshToken isEqual:[NSNull null]]) {
             refreshToken = [parameters valueForKey:@"refresh_token"];
         }
 
-        AFOAuthCredential *credential = [AFOAuthCredential credentialWithOAuthToken:[responseObject valueForKey:@"access_token"] tokenType:[responseObject valueForKey:@"token_type"]];
+        AFOAuthCredential *credential = [AFOAuthCredential credentialWithOAuthToken:[responseDictionary valueForKey:@"access_token"] tokenType:[responseDictionary valueForKey:@"token_type"]];
 
-        NSDate *expireDate = [NSDate distantFuture];
-        id expiresIn = [responseObject valueForKey:@"expires_in"];
+        NSDate *expireDate = nil;
+        id expiresIn = [responseDictionary valueForKey:@"expires_in"];
         if (expiresIn != nil && ![expiresIn isEqual:[NSNull null]]) {
             expireDate = [NSDate dateWithTimeIntervalSinceNow:[expiresIn doubleValue]];
         }
